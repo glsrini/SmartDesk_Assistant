@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+data/agent.json
+data/tickets.json
+*.log
+node_modules/

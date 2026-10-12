@@ -1,0 +1,14 @@
+{
+  "name": "smartdesk-ai-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable IT and HR help desk assistant powered by the OpenAI Agents API",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/cli.js",
+    "agent:create": "node --env-file=.env src/cli.js --create-agent",
+    "kb:check": "node --env-file=.env src/cli.js --check-kb",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20.6" }
+}
