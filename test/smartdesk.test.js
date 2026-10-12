@@ -192,7 +192,8 @@ test('agent definition uses requested model settings and both hosted and applica
   assert.equal(agentDefinition.model, 'gpt-6-astra');
   assert.deepEqual(agentDefinition.reasoning, { effort: 'medium', summary: 'auto' });
   assert.equal(agentDefinition.multi_agent.enabled, false);
-  assert.ok(agentDefinition.tools.some(tool => tool.type === 'web_search' && tool.external_web_access === true));
+  assert.ok(agentDefinition.tools.some(tool => tool.type === 'web_search' && Object.keys(tool).length === 1));
+  assert.ok(agentDefinition.tools.filter(tool => tool.type === 'function').every(tool => !('strict' in tool)));
   assert.deepEqual(agentDefinition.tools.filter(tool => tool.type === 'function').map(tool => tool.name), ['search_knowledge_base', 'create_support_ticket', 'get_ticket_status']);
 });
 

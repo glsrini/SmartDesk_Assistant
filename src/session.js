@@ -24,7 +24,7 @@ function showEvent(event) {
   }
   if (event.type === 'agent.session.turn.output_text.done' || event.type === 'agent.session.turn.completed') stdout.write('\n');
   if (event.type === 'agent.session.requires_action') console.log('\n[SmartDesk is requesting an application tool]');
-  if (event.type === 'agent.session.error' || event.type === 'agent.session.turn.failed' || event.type === 'agent.session.failed') {
+  if (event.type === 'error' || event.type === 'agent.session.error' || event.type === 'agent.session.turn.failed' || event.type === 'agent.session.failed') {
     console.error('\n[Agents API event]', JSON.stringify(event.error ?? event));
   } else if (event.type !== 'agent.session.turn.output_text.delta') {
     console.log(`[event] ${event.type ?? 'unknown'}`);
@@ -85,6 +85,7 @@ async function consumeStream(initialSessionId = null, firstResponsePath = null, 
   let path = firstResponsePath;
   let terminal = false;
   let idleCycles = 0;
+  let fatalStreamError = null;
   const handled = new Set();
   while (!terminal) {
     let sawEvent = false;
@@ -101,14 +102,16 @@ async function consumeStream(initialSessionId = null, firstResponsePath = null, 
           actions.forEach(action => handled.add(action.call_id));
           await submitToolResults(sessionId, actions);
         }
-        if (TERMINAL_EVENTS.has(event.type)) terminal = true;
         if (event.type === 'error' || event.type === 'agent.session.failed' || event.type === 'agent.session.environment.failed' || event.type === 'agent.session.turn.failed' || event.type === 'agent.session.turn.cancelled') {
-          throw new Error(event.error?.message ?? event.turn?.error?.message ?? `The agent session ended with ${event.type}.`);
+          fatalStreamError = event.error?.message ?? event.turn?.error?.message ?? `The agent session ended with ${event.type}.`;
+          terminal = true;
+          throw new Error(fatalStreamError);
         }
+        if (TERMINAL_EVENTS.has(event.type)) terminal = true;
       }
     } catch (error) {
       console.error(`\nStream error: ${error.message}`);
-      if (!sawEvent) throw error;
+      if (!sawEvent || fatalStreamError) throw error;
     }
     if (!terminal) {
       idleCycles++;

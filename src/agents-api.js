@@ -32,13 +32,27 @@ export function curlJson(path, method, body, extraHeaders = []) {
     const args = [...baseArgs(path, method)];
     for (const header of extraHeaders) args.push('--header', header);
     if (body !== undefined) args.push('--data-binary', '@-');
+    args.push('--write-out', '\n__SMARTDESK_HTTP_STATUS__:%{http_code}');
     const child = spawn(process.env.CURL_PATH || 'curl', args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
     child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
     child.on('error', error => reject(new AgentsApiError(`Could not start curl: ${error.message}`)));
     child.on('close', code => {
-      if (code !== 0) return reject(new AgentsApiError(stderr.trim() || stdout.trim() || `curl exited with status ${code}`));
-      try { resolve(stdout.trim() ? JSON.parse(stdout) : {}); }
+      const statusMatch = stdout.match(/\n__SMARTDESK_HTTP_STATUS__:(\d{3})\s*$/);
+      const status = statusMatch ? Number(statusMatch[1]) : undefined;
+      const responseBody = statusMatch ? stdout.slice(0, statusMatch.index).trim() : stdout.trim();
+      if (code !== 0 || (status !== undefined && status >= 400)) {
+        let detail = responseBody;
+        try {
+          const parsed = JSON.parse(responseBody);
+          detail = parsed.error?.message ?? responseBody;
+          if (parsed.error?.param) detail += ` (parameter: ${parsed.error.param})`;
+          if (parsed.error?.code) detail += ` (code: ${parsed.error.code})`;
+        } catch { /* Use the raw, bounded response body when it is not JSON. */ }
+        const prefix = status ? `OpenAI API returned HTTP ${status}` : (stderr.trim() || `curl exited with status ${code}`);
+        return reject(new AgentsApiError(`${prefix}: ${(detail || stderr.trim() || 'No error details returned.').slice(0, 1000)}`, status));
+      }
+      try { resolve(responseBody ? JSON.parse(responseBody) : {}); }
       catch { reject(new AgentsApiError(`The Agents API returned non-JSON content: ${stdout.slice(0, 400)}`)); }
     });
     if (body === undefined) child.stdin.end();
